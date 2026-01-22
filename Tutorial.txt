@@ -1,0 +1,18 @@
+Tutorial Laravel Reverb
+1.	npm install laravel-echo pusher-js
+2.	Boostrap.js di kopikan saja dri project
+3.	App.js di kopikan saja dri project
+.env isikan ini
+BROADCAST_CONNECTION=reverb
+REVERB_APP_KEY=local
+REVERB_HOST=127.0.0.1
+REVERB_PORT=8080
+4. php artisan make:event MessageSent
+ lalu kopikan isi file di event/MessageSent
+
+
+
+Menjalankannya menggunakan:
+npm run dev
+php artisan reverb:start
+Php artisan serve
