@@ -6,9 +6,9 @@
     <meta name="auth-id" content="{{ auth()->id() }}">
     <title>Live Chat</title>
 
-    @vite(['resources/js/app.js'])
+    @vite(['resources/js/livechat.js'])
+
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <audio id="notif-sound" src="{{ asset('wewokdetok.mp3') }}"></audio>
 
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -155,6 +155,8 @@
 
             </div>
         </div>
+
+        <a href="{{ route('dashboard') }}" class="btn btn-secondary d-flex justify-content-center mt-5">Kembali</a>
     </div>
 
     <!-- Bootstrap JS Bundle -->

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\InboxUpdated;
 use App\Events\MessageRead;
 use App\Events\MessageSent;
 use App\Models\Chat;
@@ -80,21 +81,61 @@ class LiveChatController extends Controller
             'finished' => false
         ]);
 
+        $unread = Chat::where('from_id', $chat->from_id)
+            ->where('to_id', $chat->to_id)
+            ->where('finished', false)
+            ->where('status', '!=', 'read')
+            ->count();
+
+        event(new InboxUpdated(
+            $chat->to_id,
+            [
+                'from_id'   => $chat->from_id,
+                'from_name' => $chat->fromUser->name,
+                'unread'    => $unread, 
+            ]
+        ));
+
         broadcast(new MessageSent($chat))->toOthers();
 
         return response()->json($chat);
     }
 
+
     public function markAsRead(Request $request)
     {
-        $request->validate(['from_id' => 'required|exists:users,id']);
+        $request->validate([
+            'from_id' => 'required|exists:users,id'
+        ]);
 
+        // 1. update status chat
         Chat::where('from_id', $request->from_id)
             ->where('to_id', auth()->id())
             ->where('status', '!=', 'read')
             ->update(['status' => 'read']);
 
-        broadcast(new MessageRead($request->from_id, auth()->id()))->toOthers();
+        // 2. broadcast ke PENGIRIM (chat room)
+        broadcast(new MessageRead(
+            readerId: auth()->id(),
+            senderId: $request->from_id
+        ))->toOthers();
+
+        // 3. hitung ulang unread inbox
+        $unread = Chat::where('from_id', $request->from_id)
+            ->where('to_id', auth()->id())
+            ->where('status', '!=', 'read')
+            ->where('finished', false)
+            ->count();
+
+        // 4. broadcast ke INBOX ADMIN
+        broadcast(new InboxUpdated(
+            auth()->id(), // ADMIN inbox
+            [
+                'from_id'   => $request->from_id,
+                'from_name' => User::find($request->from_id)->name,
+                'unread'    => $unread, // bisa 0
+            ]
+        ))->toOthers();
 
         return response()->json(['status' => 'ok']);
     }

@@ -7,17 +7,22 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 
 class MessageRead implements ShouldBroadcastNow
 {
-    public int $chatId;
-    public int $toId;
+    public int $readerId;
+    public int $senderId;
 
-    public function __construct(int $chatId, int $toId)
+    public function __construct(int $readerId, int $senderId)
     {
-        $this->chatId = $chatId;
-        $this->toId   = $toId;
+        $this->readerId = $readerId;
+        $this->senderId = $senderId;
     }
 
     public function broadcastOn()
     {
-        return new PrivateChannel('chat.' . $this->toId);
+        return new PrivateChannel('chat.' . $this->senderId);
+    }
+
+    public function broadcastAs(): string
+    {
+        return 'MessageRead';
     }
 }

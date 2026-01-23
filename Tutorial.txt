@@ -2,6 +2,8 @@ Tutorial Laravel Reverb
 1.	npm install laravel-echo pusher-js
 2.	Boostrap.js di kopikan saja dri project
 3.	App.js di kopikan saja dri project
+
+
 .env isikan ini
 BROADCAST_CONNECTION=reverb
 REVERB_APP_KEY=local

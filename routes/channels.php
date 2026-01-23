@@ -13,3 +13,8 @@ Broadcast::channel('online', function ($user) {
         'role' => $user->role,
     ];
 });
+
+Broadcast::channel('inbox.{adminId}', function ($user, $adminId) {
+    return (int) $user->id === (int) $adminId
+        && $user->role === 'admin';
+});

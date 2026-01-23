@@ -28,4 +28,21 @@ class MessageSent implements ShouldBroadcastNow
             new PrivateChannel('chat.' . $this->chat->to_id),
         ];
     }
+
+    public function broadcastWith()
+    {
+        return [
+            'chat' => [
+                'id' => $this->chat->id,
+                'from_id' => $this->chat->from_id,
+                'to_id' => $this->chat->to_id,
+                'message' => $this->chat->message,
+                'created_at' => $this->chat->created_at->toISOString(),
+                'from_user' => [
+                    'id' => $this->chat->fromUser->id,
+                    'name' => $this->chat->fromUser->name,
+                ],
+            ]
+        ];
+    }
 }
