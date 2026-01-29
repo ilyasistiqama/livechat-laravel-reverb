@@ -12,14 +12,4 @@ class Chat extends Model
     protected $table = 'chats';
 
     protected $guarded = [];
-
-    public function fromUser()
-    {
-        return $this->belongsTo(User::class, 'from_id');
-    }
-
-    public function toUser()
-    {
-        return $this->belongsTo(User::class, 'to_id');
-    }
 }

@@ -5,16 +5,21 @@ const chatBox = document.getElementById('chat-box');
 const chatForm = document.getElementById('chat-form');
 const typingIndicator = document.getElementById('typing-indicator');
 const resetBtn = document.getElementById('reset-chat');
-const authId = Number(document.querySelector('meta[name="auth-id"]')?.getAttribute('content'));
+const authType = document.querySelector('meta[name="auth-type"]').content;
+const authId = Number(document.querySelector('meta[name="auth-id"]').content);
+
+let currentRoom = document.getElementById('room_code')?.value || null;
+let currentChatUser = Number(document.getElementById('to_id')?.value || 0);
+let currentChatType = document.getElementById('chat_type')?.value || 'customer-to-admin';
+let activeChannel = null;
 
 /* ================= STATE ================= */
 let typingTimeout = null;
-let currentChatUser = Number(document.getElementById('to_id')?.value || 0);
 let unreadCounts = {};
 
 /* ================= RENDER MESSAGE ================= */
 function appendMessage(chat) {
-    const isMe = Number(chat.from_id) === authId;
+    const isMe = Number(chat.from_id) === authId && chat.from_type === authType;
 
     const wrapper = document.createElement('div');
     wrapper.className = `d-flex mb-2 ${isMe ? 'justify-content-end' : 'justify-content-start'}`;
@@ -33,10 +38,7 @@ function appendMessage(chat) {
     msg.innerHTML = `
         ${chat.message}
         <div class="text-muted small mt-1 text-end">
-            ${new Date(chat.created_at).toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit'
-    })}
+            ${new Date(chat.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
         </div>
     `;
     wrapper.appendChild(msg);
@@ -55,114 +57,149 @@ function appendMessage(chat) {
 
 /* ================= TYPING ================= */
 function showTyping() {
-    typingIndicator.style.display = 'block';
+    typingIndicator.classList.remove('d-none');
+
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => {
-        typingIndicator.style.display = 'none';
+        typingIndicator.classList.add('d-none');
     }, 1500);
-}
-
-function playSound() {
-    document.getElementById('notif-sound')?.play();
 }
 
 /* ================= SEND MESSAGE ================= */
 chatForm?.addEventListener('submit', e => {
     e.preventDefault();
-    if (!currentChatUser) return;
-
-    const input = document.getElementById('message');
-    const message = input.value.trim();
-    if (!message) return;
+    const message = document.getElementById('message').value.trim();
+    if (!message || !currentChatUser) return;
 
     axios.post('/chat/send', {
         message,
-        to_id: currentChatUser
+        to_id: currentChatUser,
+        to_type: document.getElementById('to_type').value,
+        room_code: currentRoom,
+        type: currentChatType
     }).then(res => {
         appendMessage(res.data);
-        input.value = '';
+
+        // 🔥 JANGAN PAKAI if (!currentRoom)
+        currentRoom = res.data.room_code;
+        document.getElementById('room_code').value = currentRoom;
+
+        subscribeRoomChannel(currentRoom);
+
+        document.getElementById('message').value = '';
     });
+
 });
 
 /* ================= USER TYPING ================= */
 chatForm?.querySelector('#message')?.addEventListener('input', () => {
-    if (!currentChatUser) return;
-    axios.post('/chat/typing', { to_id: currentChatUser });
+    if (!currentRoom) return;
+    axios.post('/chat/typing', { room_code: currentRoom });
 });
 
 /* ================= RESET CHAT ================= */
 resetBtn?.addEventListener('click', () => {
-    if (!currentChatUser) return;
-    if (!confirm('Reset seluruh chat dengan user ini?')) return;
+    if (!currentRoom) return;
+    if (!confirm('Reset seluruh chat di room ini?')) return;
 
-    axios.post('/chat/reset', { to_id: currentChatUser });
+    axios.post('/chat/reset', { room_code: currentRoom }).then(() => {
+        chatBox.innerHTML = '';
+        unreadCounts = {};
+    });
 });
 
 /* ================= MULTI CHAT ADMIN ================= */
 document.querySelectorAll('.list-group-item').forEach(el => {
     el.addEventListener('click', () => {
         currentChatUser = Number(el.dataset.userId);
+        currentRoom = el.dataset.roomCode || null; // pastikan ada room_code dari backend
+        currentChatType = el.dataset.chatType || 'customer-to-admin';
 
         document.getElementById('user-name').innerText =
             el.querySelector('.user-name')?.innerText || el.innerText.trim();
 
         resetBtn?.classList.remove('d-none');
         chatBox.innerHTML = '';
-
         unreadCounts[currentChatUser] = 0;
         document.getElementById(`badge-${currentChatUser}`)?.classList.add('d-none');
 
-        loadChat(currentChatUser);
+        if (currentRoom) {
+            loadChat(currentRoom);
+            subscribeRoomChannel(currentRoom);
+        }
     });
 });
 
 /* ================= REALTIME ================= */
-window.Echo.private(`chat.${authId}`)
-    .listen('MessageSent', e => {
-        const chat = e.chat;
+function subscribeRoomChannel(roomCode) {
+    if (!roomCode) return;
 
-        if (Number(chat.from_id) === authId) return;
+    const channelName = `chat.${roomCode}`;
 
-        if (Number(chat.from_id) === currentChatUser) {
+    // 🚫 kalau sudah subscribe ke room ini, stop
+    if (activeChannel === channelName) return;
+
+    // 🚪 leave channel lama
+    if (activeChannel) {
+        window.Echo.leave(activeChannel);
+    }
+
+    activeChannel = channelName;
+
+    window.Echo.private(channelName)
+        .listen('MessageSent', e => {
+            const chat = e.chat;
+
+            if (
+                Number(chat.from_id) === authId &&
+                chat.from_type === authType
+            ) return;
+
             appendMessage(chat);
-            // playSound();
-            axios.post('/chat/read', { from_id: chat.from_id });
-        } else {
-            unreadCounts[chat.from_id] = (unreadCounts[chat.from_id] || 0) + 1;
-            const badge = document.getElementById(`badge-${chat.from_id}`);
-            if (badge) {
-                badge.innerText = unreadCounts[chat.from_id];
-                badge.classList.remove('d-none');
+            axios.post('/chat/read', { room_code: roomCode });
+        })
+
+        .listen('ChatReset', e => {
+            if (e.room_code === currentRoom) {
+
+                if (activeChannel) {
+                    window.Echo.leave(activeChannel);
+                    activeChannel = null;
+                }
+
+                chatBox.innerHTML = '';
+                currentRoom = null;
+                document.getElementById('room_code').value = '';
             }
-        }
-    })
-    .listen('ChatReset', e => {
-        if (e.userA == authId || e.userB == authId) {
-            chatBox.innerHTML = '';
-            unreadCounts = {};
-            document.querySelectorAll('[id^="badge-"]').forEach(b => b.classList.add('d-none'));
-        }
-    })
-    .listen('UserTyping', e => {
-        if (e.fromId == currentChatUser) showTyping();
-    });
+        })
+
+        .listen('UserTyping', e => {
+            if (
+                Number(e.from_id) === currentChatUser &&
+                e.from_type !== authType
+            ) {
+                showTyping();
+            }
+        });
+}
 
 /* ================= FETCH CHAT ================= */
-function loadChat(userId) {
-    axios.get(`/chat/fetch?customer_id=${userId}`)
+function loadChat(roomCode) {
+    if (!roomCode) return;
+
+    axios.get(`/chat/fetch`, { params: { room_code: roomCode } })
         .then(res => {
             chatBox.innerHTML = '';
             res.data.chats.forEach(chat => appendMessage(chat));
 
-            // 🔥 INI YANG HILANG
-            axios.post('/chat/read', {
-                from_id: userId
-            });
+            axios.post('/chat/read', { room_code: roomCode });
         });
 }
 
-
 /* ================= INIT ================= */
 document.addEventListener('DOMContentLoaded', () => {
-    if (currentChatUser) loadChat(currentChatUser);
+    if (currentRoom) {
+        loadChat(currentRoom);
+        subscribeRoomChannel(currentRoom);
+    }
 });

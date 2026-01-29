@@ -3,12 +3,11 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\LiveChatController;
 use App\Http\Controllers\ChatInboxController;
-
-use App\Events\ChatReset;
-use App\Models\Chat;
+use App\Services\AuthResolver;
 
 /*
 |--------------------------------------------------------------------------
@@ -18,13 +17,20 @@ use App\Models\Chat;
 
 Route::get('/', fn() => view('welcome'));
 
+Route::get('/login', fn() => view('auth.login'))->name('login');
+Route::get('/register', fn() => view('auth.register'))->name('register');
+
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+Route::post('/register', [AuthController::class, 'register']);
+
 /*
 |--------------------------------------------------------------------------
 | DASHBOARD
 |--------------------------------------------------------------------------
 */
 Route::get('/dashboard', [ChatInboxController::class, 'dashboard'])
-    ->middleware(['auth', 'verified'])
+    ->middleware('auth.any')
     ->name('dashboard');
 
 /*
@@ -32,7 +38,7 @@ Route::get('/dashboard', [ChatInboxController::class, 'dashboard'])
 | AUTHENTICATED
 |--------------------------------------------------------------------------
 */
-Route::middleware('auth')->group(function () {
+Route::middleware('auth.any')->group(function () {
 
     /*
     |-------------------------
@@ -45,45 +51,52 @@ Route::middleware('auth')->group(function () {
 
     /*
     |-------------------------
-    | CHAT
+    | CHAT (PAIR BASED)
     |-------------------------
     */
-    Route::get('/chat', [LiveChatController::class, 'index'])->name('chat.index');
-    Route::get('/chat/fetch', [LiveChatController::class, 'fetch'])->name('chat.fetch');
-    Route::post('/chat/send', [LiveChatController::class, 'send'])->name('chat.send');
-    Route::post('/chat/read', [LiveChatController::class, 'markAsRead'])->name('chat.read');
 
-    Route::post('/chat/typing', function (Request $request) {
-        broadcast(
-            new \App\Events\UserTyping(auth()->id(), $request->to_id)
-        );
+    // 👉 buka chat room
+    Route::get('/chat', [LiveChatController::class, 'index'])
+        ->name('chat.index');
 
-        return response()->noContent();
-    })->name('chat.typing');
+    // 👉 fetch message
+    Route::get('/chat/fetch', [LiveChatController::class, 'fetch'])
+        ->name('chat.fetch');
 
-    Route::post('/chat/reset', function (Request $request) {
-        $admin = $request->user();
+    // 👉 send message
+    Route::post('/chat/send', [LiveChatController::class, 'send'])
+        ->name('chat.send');
 
-        abort_if($admin->role !== 'admin', 403);
+    // 👉 reset chat (ADMIN ONLY)
+    Route::post('/chat/reset', [LiveChatController::class, 'reset'])
+        // ->middleware('can:isAdmin')
+        ->name('chat.reset');
 
-        $toId = $request->to_id;
-
-        Chat::where(function ($q) use ($admin, $toId) {
-            $q->where('from_id', $admin->id)
-                ->where('to_id', $toId);
-        })->orWhere(function ($q) use ($admin, $toId) {
-            $q->where('from_id', $toId)
-                ->where('to_id', $admin->id);
-        })->update(['finished' => true]);
-
-        broadcast(new ChatReset($admin->id, $toId))->toOthers();
-
-        return response()->json(['status' => 'ok']);
-    })->name('chat.reset');
+    Route::post('/chat/read', [LiveChatController::class, 'markAsRead'])
+        ->name('chat.read');
 
     /*
     |-------------------------
-    | CHAT INBOX
+    | TYPING (PAIR BASED)
+    |-------------------------
+    */
+    Route::post('/chat/typing', function (Request $request) {
+        $auth = \App\Services\AuthResolver::resolve();
+
+        broadcast(new \App\Events\UserTyping(
+            roomCode: $request->room_code,
+            fromId: $auth->user->id,
+            fromType: $auth->type
+        ))->toOthers();
+
+        return response()->noContent();
+    });
+
+
+
+    /*
+    |-------------------------
+    | INBOX
     |-------------------------
     */
     Route::get('/chat/unread', [ChatInboxController::class, 'unread'])
@@ -93,10 +106,3 @@ Route::middleware('auth')->group(function () {
         ->middleware('can:isAdmin')
         ->name('admin.inbox');
 });
-
-/*
-|--------------------------------------------------------------------------
-| AUTH
-|--------------------------------------------------------------------------
-*/
-require __DIR__ . '/auth.php';

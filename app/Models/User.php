@@ -45,4 +45,11 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    // User.php
+    public function chatPairsAsAdmin()
+    {
+        return $this->hasMany(ChatPair::class, 'user_b_id')
+            ->where('user_b_type', 'admin');
+    }
 }

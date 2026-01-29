@@ -1,9 +1,15 @@
 <!DOCTYPE html>
 <html lang="id">
+@php
+    use App\Services\AuthResolver;
+    $auth = AuthResolver::resolve();
+@endphp
 
 <head>
     <meta charset="UTF-8">
-    <meta name="auth-id" content="{{ auth()->id() }}">
+    <meta name="auth-type" content="{{ $auth->type }}">
+    <meta name="auth-id" content="{{ $auth->user->id }}">
+
     <title>Live Chat</title>
 
     @vite(['resources/js/livechat.js'])
@@ -119,15 +125,17 @@
 </head>
 
 <body>
+    <input type="hidden" id="room_code" value="{{ $roomCode }}">
+    <input type="hidden" id="to_id" value="{{ $toUserId }}">
+    <input type="hidden" id="to_type" value="{{ $toUserType }}">
+    <input type="hidden" id="chat_type" value="{{ $type }}">
 
     <div class="container py-5">
         <div class="card shadow-sm">
             <!-- HEADER -->
             <div class="card-header d-flex justify-content-between align-items-center">
                 <div>
-                    ({{ auth()->user()->role }}) Chat dengan
-                    <strong id="user-{{ $toUser->id }}">{{ $toUser->name }}</strong>
-                    <span id="badge-{{ $toUser->id }}" class="badge bg-danger ms-1 d-none">0</span>
+                    Live Chat
                 </div>
                 <div id="user-status" class="text-success">
                     <span class="online"></span> Online
@@ -138,17 +146,19 @@
             <div class="card-body p-3" id="chat-box"></div>
 
             <!-- Typing indicator -->
-            <div id="typing-indicator" class="p-2" style="display: none;">sedang mengetik...</div>
+            <div id="typing-indicator" class="p-2 d-none">
+                sedang mengetik...
+            </div>
 
             <!-- FOOTER: FORM & RESET -->
             <div class="card-footer p-3 d-flex justify-content-between align-items-center gap-2 flex-wrap">
                 <form id="chat-form" class="d-flex gap-2 flex-grow-1 mb-2 mb-md-0">
                     @csrf
-                    <input type="hidden" id="to_id" value="{{ $toUser->id }}">
+                    {{-- <input type="hidden" id="to_id" value="{{ $toUser->id }}"> --}}
                     <input type="text" id="message" class="form-control" placeholder="Ketik pesan..."
                         autocomplete="off">
                     <button type="submit" class="btn btn-primary">Kirim</button>
-                    @if (auth()->user()->role === 'admin')
+                    @if ($auth->type === 'admin')
                         <button id="reset-chat" class="btn btn-danger">Chat Selesai</button>
                     @endif
                 </form>

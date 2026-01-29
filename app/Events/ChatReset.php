@@ -4,27 +4,25 @@ namespace App\Events;
 
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
-use Illuminate\Foundation\Events\Dispatchable;
-use Illuminate\Queue\SerializesModels;
 
 class ChatReset implements ShouldBroadcastNow
 {
-    use Dispatchable, SerializesModels;
+    public string $roomCode;
 
-    public int $userA;
-    public int $userB;
-
-    public function __construct(int $userA, int $userB)
+    public function __construct(string $roomCode)
     {
-        $this->userA = $userA;
-        $this->userB = $userB;
+        $this->roomCode = $roomCode;
     }
 
-    public function broadcastOn(): array
+    public function broadcastOn(): PrivateChannel
+    {
+        return new PrivateChannel("chat.{$this->roomCode}");
+    }
+
+    public function broadcastWith(): array
     {
         return [
-            new PrivateChannel('chat.' . $this->userA),
-            new PrivateChannel('chat.' . $this->userB),
+            'room_code' => $this->roomCode,
         ];
     }
 }

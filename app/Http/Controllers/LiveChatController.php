@@ -2,63 +2,107 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\InboxUpdated;
+use App\Events\ChatReset;
 use App\Events\MessageRead;
 use App\Events\MessageSent;
 use App\Models\Chat;
+use App\Models\Member;
 use App\Models\User;
+use App\Services\AuthResolver;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class LiveChatController extends Controller
 {
     public function index(Request $request)
     {
-        $user = auth()->user();
+        $auth = AuthResolver::resolve();
 
-        if ($user->role === 'customer') {
-            $toUser = User::where('role', 'admin')->firstOrFail();
-        } else {
-            // ADMIN WAJIB pilih customer
-            $customerId = $request->query('customer_id');
+        $type = $request->query('type', 'customer-to-admin');
 
-            if (!$customerId) {
-                abort(404, 'Customer belum dipilih');
+        $roomCode   = null;
+        $toUserId   = null;
+        $toUserType = null;
+
+        if ($type === 'customer-to-admin') {
+
+            if ($auth->type === 'admin') {
+
+                // ===============================
+                // ADMIN LOGIN
+                // ===============================
+                $admin = $auth->user;
+
+                $targetMemberId = $request->query('to_member_id');
+                abort_if(!$targetMemberId, 404, 'Target member belum dipilih');
+
+                // ADMIN boleh lihat room lama
+                $existingChat = Chat::where(function ($q) use ($admin, $targetMemberId, $type) {
+                    $q->where([
+                        ['from_id', $targetMemberId],
+                        ['from_type', 'member'],
+                        ['to_id', $admin->id],
+                        ['to_type', 'admin'],
+                        ['type', $type],
+                    ]);
+                })->orWhere(function ($q) use ($admin, $targetMemberId, $type) {
+                    $q->where([
+                        ['from_id', $admin->id],
+                        ['from_type', 'admin'],
+                        ['to_id', $targetMemberId],
+                        ['to_type', 'member'],
+                        ['type', $type],
+                    ]);
+                })->latest()->first();
+
+                $roomCode   = $existingChat?->room_code;
+                $toUserId   = $targetMemberId;
+                $toUserType = 'member';
+            } else {
+
+                $member = $auth->user;
+
+                $existingChat = Chat::where(function ($q) use ($member, $type) {
+                    $q->where([
+                        ['from_id', $member->id],
+                        ['from_type', 'member'],
+                        ['type', $type],
+                    ]);
+                })->orWhere(function ($q) use ($member, $type) {
+                    $q->where([
+                        ['to_id', $member->id],
+                        ['to_type', 'member'],
+                        ['type', $type],
+                    ]);
+                })->latest()->first();
+
+                $roomCode   = $existingChat?->room_code;
+                $toUserId   = $existingChat
+                    ? ($existingChat->from_type === 'admin'
+                        ? $existingChat->from_id
+                        : $existingChat->to_id)
+                    : null;
+
+                $toUserType = 'admin';
             }
-
-            $toUser = User::where('id', $customerId)
-                ->where('role', 'customer')
-                ->firstOrFail();
         }
 
-        $chats = Chat::where(function ($q) use ($user, $toUser) {
-            $q->where('from_id', $user->id)
-                ->where('to_id', $toUser->id);
-        })->orWhere(function ($q) use ($user, $toUser) {
-            $q->where('from_id', $toUser->id)
-                ->where('to_id', $user->id);
-        })
-            ->where('finished', false)
-            ->orderBy('created_at')
-            ->get();
 
-        return view('chat.index', compact('toUser'));
+        return view('chat.index', compact(
+            'roomCode',
+            'toUserId',
+            'toUserType',
+            'type'
+        ));
     }
 
     public function fetch(Request $request)
     {
-        $user = auth()->user();
-        $toId = $request->customer_id;
+        $roomCode = $request->room_code;
+        if (!$roomCode) return response()->json(['chats' => []]);
 
-        $chats = Chat::where(function ($q) use ($user, $toId) {
-            $q->where(function ($qq) use ($user, $toId) {
-                $qq->where('from_id', $user->id)
-                    ->where('to_id', $toId);
-            })
-                ->orWhere(function ($qq) use ($user, $toId) {
-                    $qq->where('from_id', $toId)
-                        ->where('to_id', $user->id);
-                });
-        })
+        $chats = Chat::where('room_code', $roomCode)
             ->where('finished', false)
             ->orderBy('created_at')
             ->get();
@@ -68,35 +112,73 @@ class LiveChatController extends Controller
 
     public function send(Request $request)
     {
-        $request->validate([
-            'to_id' => 'required|exists:users,id',
-            'message' => 'required|string'
-        ]);
+        $auth = AuthResolver::resolve();
+        $type = $auth->type;
 
+        if ($type === 'admin') {
+            $request->validate([
+                'to_id' => 'required|exists:members,id',
+                'message' => 'required|string'
+            ]);
+            $toType = 'member';
+        } else {
+            $request->validate([
+                'to_id' => 'required|exists:users,id',
+                'message' => 'required|string'
+            ]);
+            $toType = 'admin';
+        }
+
+        // ===============================
+        // CARI CHAT TERAKHIR (2 ARAH)
+        // ===============================
+        $lastChat = Chat::where(function ($q) use ($auth, $request, $type, $toType) {
+            $q->where([
+                ['from_id', $auth->user->id],
+                ['from_type', $type],
+                ['to_id', $request->to_id],
+                ['to_type', $toType],
+                ['type', $request->type],
+            ]);
+        })->orWhere(function ($q) use ($auth, $request, $type, $toType) {
+            $q->where([
+                ['from_id', $request->to_id],
+                ['from_type', $toType],
+                ['to_id', $auth->user->id],
+                ['to_type', $type],
+                ['type', $request->type],
+            ]);
+        })->latest()->first();
+
+        // ===============================
+        // TENTUKAN ROOM CODE
+        // ===============================
+        if (!$lastChat) {
+            $roomCode = Str::uuid();
+        } elseif (!$lastChat->finished) {
+            $roomCode = $lastChat->room_code;
+        } else {
+            $roomCode = Str::uuid();
+        }
+
+        // ===============================
+        // SIMPAN CHAT
+        // ===============================
         $chat = Chat::create([
-            'from_id' => auth()->id(),
-            'to_id' => $request->to_id,
-            'message' => $request->message,
-            'status' => 'sent',
-            'finished' => false
+            'room_code' => $roomCode,
+            'from_id'   => $auth->user->id,
+            'from_type' => $type,
+            'to_id'     => $request->to_id,
+            'to_type'   => $toType,
+            'message'   => $request->message,
+            'type'      => $request->type,
+            'finished'  => false,
         ]);
 
-        $unread = Chat::where('from_id', $chat->from_id)
-            ->where('to_id', $chat->to_id)
-            ->where('finished', false)
-            ->where('status', '!=', 'read')
-            ->count();
-
-        event(new InboxUpdated(
-            $chat->to_id,
-            [
-                'from_id'   => $chat->from_id,
-                'from_name' => $chat->fromUser->name,
-                'unread'    => $unread, 
-            ]
-        ));
-
-        broadcast(new MessageSent($chat))->toOthers();
+        broadcast(new MessageSent(
+            chat: $chat->toArray(),
+            roomCode: $roomCode
+        ))->toOthers();
 
         return response()->json($chat);
     }
@@ -104,38 +186,27 @@ class LiveChatController extends Controller
 
     public function markAsRead(Request $request)
     {
-        $request->validate([
-            'from_id' => 'required|exists:users,id'
-        ]);
+        $auth = AuthResolver::resolve();
+        $roomCode = $request->room_code;
+        if (!$roomCode) return response()->json(['status' => 'error']);
 
-        // 1. update status chat
-        Chat::where('from_id', $request->from_id)
-            ->where('to_id', auth()->id())
-            ->where('status', '!=', 'read')
+        Chat::where('room_code', $roomCode)
+            ->where('to_id', $auth->user->id)
             ->update(['status' => 'read']);
 
-        // 2. broadcast ke PENGIRIM (chat room)
-        broadcast(new MessageRead(
-            readerId: auth()->id(),
-            senderId: $request->from_id
-        ))->toOthers();
+        broadcast(new MessageRead($auth->user->id, $roomCode))->toOthers();
 
-        // 3. hitung ulang unread inbox
-        $unread = Chat::where('from_id', $request->from_id)
-            ->where('to_id', auth()->id())
-            ->where('status', '!=', 'read')
-            ->where('finished', false)
-            ->count();
+        return response()->json(['status' => 'ok']);
+    }
 
-        // 4. broadcast ke INBOX ADMIN
-        broadcast(new InboxUpdated(
-            auth()->id(), // ADMIN inbox
-            [
-                'from_id'   => $request->from_id,
-                'from_name' => User::find($request->from_id)->name,
-                'unread'    => $unread, // bisa 0
-            ]
-        ))->toOthers();
+    public function reset(Request $request)
+    {
+        $roomCode = $request->room_code;
+        if (!$roomCode) return response()->json(['status' => 'error']);
+
+        Chat::where('room_code', $roomCode)->update(['finished' => true]);
+
+        broadcast(new ChatReset($roomCode))->toOthers();
 
         return response()->json(['status' => 'ok']);
     }

@@ -10,6 +10,7 @@ const authId = document
    RENDER / UPDATE ITEM
 ========================= */
 function renderInboxItem({ from_id, from_name, unread }) {
+    if (!inboxList) return;
 
     let item = inboxList.querySelector(`[data-user-id="${from_id}"]`);
 
@@ -17,29 +18,47 @@ function renderInboxItem({ from_id, from_name, unread }) {
         item = document.createElement('a');
         item.href = `/chat?customer_id=${from_id}`;
         item.dataset.userId = from_id;
+
         item.className =
-            'flex justify-between items-center p-2 rounded hover:bg-gray-100 text-gray-800';
+            'list-group-item list-group-item-action d-flex justify-content-between align-items-center inbox-item';
 
         inboxList.prepend(item);
     }
 
-    // ===== NAME =====
-    let nameEl = item.querySelector('.inbox-name');
+    /* ===== LEFT CONTENT ===== */
+    let content = item.querySelector('.inbox-content');
+    if (!content) {
+        content = document.createElement('div');
+        content.className = 'inbox-content';
+        item.appendChild(content);
+    }
+
+    /* ===== NAME ===== */
+    let nameEl = content.querySelector('.inbox-name');
     if (!nameEl) {
-        nameEl = document.createElement('span');
-        nameEl.className = 'inbox-name';
-        item.prepend(nameEl);
+        nameEl = document.createElement('div');
+        nameEl.className = 'fw-semibold inbox-name';
+        content.appendChild(nameEl);
     }
     nameEl.innerText = from_name;
 
-    // ===== BADGE =====
+    /* ===== SUBTEXT ===== */
+    let subEl = content.querySelector('.inbox-sub');
+    if (!subEl) {
+        subEl = document.createElement('small');
+        subEl.className = 'text-muted inbox-sub';
+        subEl.innerText = 'Pesan baru masuk';
+        content.appendChild(subEl);
+    }
+
+    /* ===== BADGE ===== */
     let badge = item.querySelector('.inbox-badge');
 
     if (unread > 0) {
         if (!badge) {
             badge = document.createElement('span');
             badge.className =
-                'ml-2 min-w-[20px] text-center bg-red-600 text-white text-xs font-bold px-2 py-0.5 rounded-full inbox-badge';
+                'badge bg-danger rounded-pill inbox-badge';
             item.appendChild(badge);
         }
         badge.innerText = unread;
@@ -47,6 +66,7 @@ function renderInboxItem({ from_id, from_name, unread }) {
         badge?.remove();
     }
 
+    /* PIN TO TOP */
     inboxList.prepend(item);
 }
 
@@ -58,6 +78,13 @@ if (authId && inboxList) {
         .then(res => res.json())
         .then(data => {
             inboxList.innerHTML = '';
+
+            if (data.length === 0) {
+                document.getElementById('inbox-empty')?.classList.remove('d-none');
+                return;
+            }
+
+            document.getElementById('inbox-empty')?.classList.add('d-none');
             data.forEach(renderInboxItem);
         });
 }
@@ -65,11 +92,15 @@ if (authId && inboxList) {
 /* =========================
    REALTIME UPDATE
 ========================= */
-if (authId && inboxList) {
+if (authId && inboxList && window.Echo) {
     Echo.private(`inbox.${authId}`)
         .listen('.InboxUpdated', (e) => {
 
             renderInboxItem(e);
-            sound?.play().catch(() => { });
+
+            if (sound) {
+                sound.currentTime = 0;
+                sound.play().catch(() => { });
+            }
         });
 }

@@ -7,19 +7,22 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 
 class UserTyping implements ShouldBroadcastNow
 {
-    public int $fromId;
-    public int $toId;
+    public function __construct(
+        public string $roomCode,
+        public int $fromId,
+        public string $fromType
+    ) {}
 
-    public function __construct(int $fromId, int $toId)
+    public function broadcastOn(): PrivateChannel
     {
-        $this->fromId = $fromId;
-        $this->toId   = $toId;
+        return new PrivateChannel("chat.{$this->roomCode}");
     }
 
-    public function broadcastOn(): array
+    public function broadcastWith(): array
     {
         return [
-            new PrivateChannel('chat.' . $this->toId),
+            'from_id'   => $this->fromId,
+            'from_type' => $this->fromType,
         ];
     }
 }
