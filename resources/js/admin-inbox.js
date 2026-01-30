@@ -1,64 +1,66 @@
 import './bootstrap';
 
 const inboxList = document.getElementById('inbox-list');
+const inboxEmpty = document.getElementById('inbox-empty');
 const sound = document.getElementById('inbox-sound');
-const authId = document
-    .querySelector('meta[name="auth-id"]')
-    ?.getAttribute('content');
+const authId = document.querySelector('meta[name="auth-id"]')?.content;
 
 /* =========================
    RENDER / UPDATE ITEM
 ========================= */
-function renderInboxItem({ from_id, from_name, unread }) {
-    if (!inboxList) return;
+function renderInboxItem({
+    room_code,
+    from_id,
+    from_name,
+    unread = 0,
+    last_message = '',
+}) {
+    if (!from_id || !inboxList) return;
 
     let item = inboxList.querySelector(`[data-user-id="${from_id}"]`);
 
     if (!item) {
         item = document.createElement('a');
-        item.href = `/chat?customer_id=${from_id}`;
         item.dataset.userId = from_id;
-
+        item.href = `/chat?to_member_id=${from_id}&type=customer-to-admin`;
         item.className =
             'list-group-item list-group-item-action d-flex justify-content-between align-items-center inbox-item';
 
         inboxList.prepend(item);
     }
 
-    /* ===== LEFT CONTENT ===== */
+    // CONTENT
     let content = item.querySelector('.inbox-content');
     if (!content) {
         content = document.createElement('div');
-        content.className = 'inbox-content';
+        content.className = 'inbox-content overflow-hidden';
         item.appendChild(content);
     }
 
-    /* ===== NAME ===== */
+    // NAME
     let nameEl = content.querySelector('.inbox-name');
     if (!nameEl) {
         nameEl = document.createElement('div');
         nameEl.className = 'fw-semibold inbox-name';
         content.appendChild(nameEl);
     }
-    nameEl.innerText = from_name;
+    nameEl.innerText = from_name || 'Customer';
 
-    /* ===== SUBTEXT ===== */
+    // LAST MESSAGE
     let subEl = content.querySelector('.inbox-sub');
     if (!subEl) {
         subEl = document.createElement('small');
-        subEl.className = 'text-muted inbox-sub';
-        subEl.innerText = 'Pesan baru masuk';
+        subEl.className = 'text-muted inbox-sub d-block text-truncate';
         content.appendChild(subEl);
     }
+    subEl.innerText = last_message || 'Pesan baru masuk';
 
-    /* ===== BADGE ===== */
+    // BADGE
     let badge = item.querySelector('.inbox-badge');
-
     if (unread > 0) {
         if (!badge) {
             badge = document.createElement('span');
-            badge.className =
-                'badge bg-danger rounded-pill inbox-badge';
+            badge.className = 'badge bg-danger rounded-pill inbox-badge';
             item.appendChild(badge);
         }
         badge.innerText = unread;
@@ -66,8 +68,7 @@ function renderInboxItem({ from_id, from_name, unread }) {
         badge?.remove();
     }
 
-    /* PIN TO TOP */
-    inboxList.prepend(item);
+    inboxEmpty?.classList.add('d-none');
 }
 
 /* =========================
@@ -79,12 +80,12 @@ if (authId && inboxList) {
         .then(data => {
             inboxList.innerHTML = '';
 
-            if (data.length === 0) {
-                document.getElementById('inbox-empty')?.classList.remove('d-none');
+            if (!data || data.length === 0) {
+                inboxEmpty?.classList.remove('d-none');
                 return;
             }
 
-            document.getElementById('inbox-empty')?.classList.add('d-none');
+            inboxEmpty?.classList.add('d-none');
             data.forEach(renderInboxItem);
         });
 }
@@ -94,8 +95,7 @@ if (authId && inboxList) {
 ========================= */
 if (authId && inboxList && window.Echo) {
     Echo.private(`inbox.${authId}`)
-        .listen('.InboxUpdated', (e) => {
-
+        .listen('.InboxUpdated', e => {
             renderInboxItem(e);
 
             if (sound) {

@@ -8,12 +8,12 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 class InboxUpdated implements ShouldBroadcastNow
 {
     public int $userId;
-    public array $data;
+    public array $payload;
 
-    public function __construct(int $userId, array $data)
+    public function __construct(int $userId, array $payload)
     {
-        $this->userId = $userId;
-        $this->data   = $data;
+        $this->userId  = $userId;
+        $this->payload = $payload;
     }
 
     public function broadcastOn()
@@ -21,13 +21,13 @@ class InboxUpdated implements ShouldBroadcastNow
         return new PrivateChannel('inbox.' . $this->userId);
     }
 
-    public function broadcastAs(): string
+    public function broadcastAs()
     {
         return 'InboxUpdated';
     }
 
-    public function broadcastWith(): array
+    public function broadcastWith()
     {
-        return $this->data;
+        return $this->payload;
     }
 }

@@ -69,6 +69,8 @@ function showTyping() {
 chatForm?.addEventListener('submit', e => {
     e.preventDefault();
     const message = document.getElementById('message').value.trim();
+
+    console.log(currentChatUser);
     if (!message || !currentChatUser) return;
 
     axios.post('/chat/send', {

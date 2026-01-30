@@ -3,6 +3,7 @@
 @section('title', 'Dashboard')
 
 @section('content')
+    @vite(['resources/js/admin-inbox.js'])
     <style>
         .chat-float-btn {
             position: fixed;
@@ -37,7 +38,47 @@
     @if ($auth && $auth->guard === 'admin')
         <div class="card shadow-sm">
             <div class="card-body">
-                @include('admin.inbox-list')
+                <meta name="auth-id" content="{{ auth()->id() }}">
+
+                <style>
+                    .inbox-item {
+                        transition: background .15s ease;
+                    }
+
+                    .inbox-item:hover {
+                        background: #f8f9fa;
+                    }
+                </style>
+
+
+                <div class="card shadow-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold">
+                            📥 Inbox Customer
+                        </h5>
+
+                        <span class="badge bg-primary" id="inbox-count" style="display:none">
+                            0
+                        </span>
+                    </div>
+
+                    <div class="card-body p-0">
+
+                        {{-- LIST INBOX --}}
+                        <ul id="inbox-list" class="list-group list-group-flush">
+                            {{-- realtime injected --}}
+                        </ul>
+
+                        {{-- EMPTY STATE --}}
+                        <div id="inbox-empty" class="text-center text-muted py-4">
+                            Belum ada pesan masuk
+                        </div>
+
+                    </div>
+                </div>
+
+                <audio id="inbox-sound" src="{{ asset('wewokdetok.mp3') }}"></audio>
+
             </div>
         </div>
 
@@ -71,8 +112,7 @@
                             </div>
                         </div>
 
-                        <a href="{{ route('chat.index') }}"
-                            class="btn btn-sm btn-outline-primary rounded-pill">
+                        <a href="{{ route('chat.index') }}" class="btn btn-sm btn-outline-primary rounded-pill">
                             Chat
                         </a>
                     </div>
@@ -81,7 +121,8 @@
         </div>
 
         {{-- FLOATING CHAT --}}
-        <a href="{{ route('chat.index', ['type' => 'customer-to-admin']) }}" class="chat-float-btn" title="Chat Customer Service">
+        <a href="{{ route('chat.index', ['type' => 'customer-to-admin']) }}" class="chat-float-btn"
+            title="Chat Customer Service">
             <i class="bi bi-chat-dots-fill"></i>
         </a>
     @endif

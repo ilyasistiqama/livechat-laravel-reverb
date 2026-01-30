@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Member;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 
 class AuthResolver
@@ -21,6 +23,28 @@ class AuthResolver
                 'guard' => 'member',
                 'type'  => 'member',
                 'user'  => Auth::guard('member')->user(),
+            ];
+        }
+
+        return null;
+    }
+
+
+    public static function resolveByUserId(int $userId): ?object
+    {
+        if ($admin = User::find($userId)) {
+            return (object) [
+                'guard' => 'admin',
+                'type'  => 'admin',
+                'user'  => $admin,
+            ];
+        }
+
+        if ($member = Member::find($userId)) {
+            return (object) [
+                'guard' => 'member',
+                'type'  => 'member',
+                'user'  => $member,
             ];
         }
 

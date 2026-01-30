@@ -35,14 +35,12 @@ Broadcast::channel('chat.{roomCode}', function ($user, string $roomCode) {
 // }, ['guards' => ['admin', 'member']]);
 
 
-// Broadcast::channel('inbox.{adminId}', function ($_, $adminId) {
+Broadcast::channel('inbox.{adminId}', function ($user, $adminId) {
 
-//     $auth = AuthResolver::resolve();
+    if (! $user) {
+        return false;
+    }
 
-//     if (! $auth) {
-//         return false;
-//     }
-
-//     return $auth->type === 'admin'
-//         && (int) $auth->id === (int) $adminId;
-// }, ['guards' => ['admin', 'member']]);
+    return $user instanceof \App\Models\User
+        && (int) $user->id === (int) $adminId;
+}, ['guards' => ['admin']]);

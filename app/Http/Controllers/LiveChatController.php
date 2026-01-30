@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Events\ChatReset;
+use App\Events\InboxUpdated;
 use App\Events\MessageRead;
 use App\Events\MessageSent;
 use App\Models\Chat;
@@ -77,17 +78,25 @@ class LiveChatController extends Controller
                     ]);
                 })->latest()->first();
 
-                $roomCode   = $existingChat?->room_code;
-                $toUserId   = $existingChat
-                    ? ($existingChat->from_type === 'admin'
+                if ($existingChat) {
+                    $roomCode = $existingChat->room_code;
+
+                    $toUserId = $existingChat->from_type === 'admin'
                         ? $existingChat->from_id
-                        : $existingChat->to_id)
-                    : null;
+                        : $existingChat->to_id;
+                } else {
+                    // 🔥 CHAT PERTAMA
+                    $admin = User::inRandomOrder()->first();
+
+                    abort_if(!$admin, 503, 'Admin tidak tersedia');
+
+                    $roomCode = null;
+                    $toUserId = $admin->id;
+                }
 
                 $toUserType = 'admin';
             }
         }
-
 
         return view('chat.index', compact(
             'roomCode',
@@ -179,6 +188,22 @@ class LiveChatController extends Controller
             chat: $chat->toArray(),
             roomCode: $roomCode
         ))->toOthers();
+
+        $item = Chat::selectRaw('
+    chats.from_id,
+    members.name as from_name,
+    MAX(chats.message) as last_message,
+    SUM(CASE WHEN chats.status != "read" THEN 1 ELSE 0 END) as unread
+')
+            ->join('members', 'members.id', '=', 'chats.from_id')
+            ->where('chats.to_id', $chat->to_id)   // admin
+            ->where('chats.from_id', $chat->from_id)
+            ->where('chats.finished', false)
+            ->groupBy('chats.from_id', 'members.name')
+            ->first();
+
+        event(new InboxUpdated($chat->to_id, $item->toArray()));
+
 
         return response()->json($chat);
     }
