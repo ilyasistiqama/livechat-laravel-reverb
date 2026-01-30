@@ -105,10 +105,18 @@ resetBtn?.addEventListener('click', () => {
     if (!confirm('Reset seluruh chat di room ini?')) return;
 
     axios.post('/chat/reset', { room_code: currentRoom }).then(() => {
+        // bersihin state
         chatBox.innerHTML = '';
         unreadCounts = {};
+
+        // LEAVE SOCKET (penting)
+        window.Echo?.leave(`chat.${currentRoom}`);
+
+        // redirect admin
+        window.location.href = window.routes.dashboard;
     });
 });
+
 
 /* ================= MULTI CHAT ADMIN ================= */
 document.querySelectorAll('.list-group-item').forEach(el => {
@@ -169,9 +177,17 @@ function subscribeRoomChannel(roomCode) {
                     activeChannel = null;
                 }
 
+                alert('Chat telah diakhiri.');
+
                 chatBox.innerHTML = '';
                 currentRoom = null;
                 document.getElementById('room_code').value = '';
+
+                // keluar dari channel
+                window.Echo.leave(`private-chat.${currentRoom}`);
+
+                // redirect semua client
+                window.location.href = window.routes.dashboard;
             }
         })
 
