@@ -6,6 +6,7 @@ use App\Events\ChatReset;
 use App\Events\InboxUpdated;
 use App\Events\MessageRead;
 use App\Events\MessageSent;
+use App\Events\MessageSentToUser;
 use App\Models\Chat;
 use App\Models\Member;
 use App\Models\User;
@@ -19,7 +20,6 @@ class LiveChatController extends Controller
     public function index(Request $request)
     {
         $auth = AuthResolver::resolve();
-
         $type = $request->query('type', 'customer-to-admin');
 
         $roomCode   = null;
@@ -96,6 +96,51 @@ class LiveChatController extends Controller
 
                 $toUserType = 'admin';
             }
+        } elseif ($type === 'customer-to-customer') {
+
+            // ===============================
+            // CUSTOMER TO CUSTOMER
+            // ===============================
+            abort_if($auth->type !== 'member', 403, 'Hanya member yang bisa mengakses chat ini');
+
+            $member = $auth->user;
+
+            $targetMemberId = $request->query('to_member_id');
+            abort_if(!$targetMemberId, 404, 'Target member belum dipilih');
+
+            // Cegah chat ke diri sendiri
+            abort_if($member->id == $targetMemberId, 400, 'Tidak bisa chat dengan diri sendiri');
+
+            // Cari chat lama (dua arah)
+            $existingChat = Chat::where(function ($q) use ($member, $targetMemberId, $type) {
+                $q->where([
+                    ['from_id', $member->id],
+                    ['from_type', 'member'],
+                    ['to_id', $targetMemberId],
+                    ['to_type', 'member'],
+                    ['type', $type],
+                ]);
+            })->orWhere(function ($q) use ($member, $targetMemberId, $type) {
+                $q->where([
+                    ['from_id', $targetMemberId],
+                    ['from_type', 'member'],
+                    ['to_id', $member->id],
+                    ['to_type', 'member'],
+                    ['type', $type],
+                ]);
+            })->latest()->first();
+
+
+            if ($existingChat) {
+                // ROOM LAMA
+                $roomCode = $existingChat->room_code;
+            } else {
+                // CHAT PERTAMA
+                $roomCode = null;
+            }
+
+            $toUserId   = $targetMemberId;
+            $toUserType = 'member';
         }
 
         return view('chat.index', compact(
@@ -124,23 +169,34 @@ class LiveChatController extends Controller
         $auth = AuthResolver::resolve();
         $type = $auth->type;
 
-        if ($type === 'admin') {
+        $typeChat = $request->type;
+
+        if ($typeChat === 'customer-to-admin') {
+            if ($type === 'admin') {
+                $request->validate([
+                    'to_id' => 'required|exists:members,id',
+                    'message' => 'required|string'
+                ]);
+                $toType = 'member';
+            } else {
+                $request->validate([
+                    'to_id' => 'required|exists:users,id',
+                    'message' => 'required|string'
+                ]);
+                $toType = 'admin';
+            }
+        } else {
             $request->validate([
                 'to_id' => 'required|exists:members,id',
                 'message' => 'required|string'
             ]);
             $toType = 'member';
-        } else {
-            $request->validate([
-                'to_id' => 'required|exists:users,id',
-                'message' => 'required|string'
-            ]);
-            $toType = 'admin';
         }
 
         // ===============================
         // CARI CHAT TERAKHIR (2 ARAH)
         // ===============================
+
         $lastChat = Chat::where(function ($q) use ($auth, $request, $type, $toType) {
             $q->where([
                 ['from_id', $auth->user->id],
@@ -184,10 +240,14 @@ class LiveChatController extends Controller
             'finished'  => false,
         ]);
 
-        broadcast(new MessageSent(
-            chat: $chat->toArray(),
-            roomCode: $roomCode
-        ))->toOthers();
+        // 🔥 KIRIM KE ROOM (KALAU SUDAH ADA)
+        broadcast(new MessageSent($chat->toArray()))->toOthers();
+
+        // 🔥 KIRIM KE USER (CHAT PERTAMA)
+        event(new MessageSentToUser(
+            userId: $chat->to_id,
+            chat: $chat->toArray()
+        ));
 
         $item = Chat::selectRaw('
     chats.from_id,
@@ -203,7 +263,6 @@ class LiveChatController extends Controller
             ->first();
 
         event(new InboxUpdated($chat->to_id, $item->toArray()));
-
 
         return response()->json($chat);
     }

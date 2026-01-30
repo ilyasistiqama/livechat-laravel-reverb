@@ -81,8 +81,8 @@ Route::middleware('auth.any')->group(function () {
     |-------------------------
     */
     Route::post('/chat/typing', function (Request $request) {
-        $auth = \App\Services\AuthResolver::resolve();
-
+        $auth = AuthResolver::resolve();
+        
         broadcast(new \App\Events\UserTyping(
             roomCode: $request->room_code,
             fromId: $auth->user->id,
@@ -91,8 +91,6 @@ Route::middleware('auth.any')->group(function () {
 
         return response()->noContent();
     });
-
-
 
     /*
     |-------------------------

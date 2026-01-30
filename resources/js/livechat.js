@@ -5,17 +5,16 @@ const chatBox = document.getElementById('chat-box');
 const chatForm = document.getElementById('chat-form');
 const typingIndicator = document.getElementById('typing-indicator');
 const resetBtn = document.getElementById('reset-chat');
+
 const authType = document.querySelector('meta[name="auth-type"]').content;
 const authId = Number(document.querySelector('meta[name="auth-id"]').content);
 
 let currentRoom = document.getElementById('room_code')?.value || null;
 let currentChatUser = Number(document.getElementById('to_id')?.value || 0);
 let currentChatType = document.getElementById('chat_type')?.value || 'customer-to-admin';
-let activeChannel = null;
 
-/* ================= STATE ================= */
+let activeRoomChannel = null;
 let typingTimeout = null;
-let unreadCounts = {};
 
 /* ================= RENDER MESSAGE ================= */
 function appendMessage(chat) {
@@ -24,7 +23,6 @@ function appendMessage(chat) {
     const wrapper = document.createElement('div');
     wrapper.className = `d-flex mb-2 ${isMe ? 'justify-content-end' : 'justify-content-start'}`;
 
-    // avatar lawan
     if (!isMe) {
         const avatar = document.createElement('img');
         avatar.src = `https://i.pravatar.cc/35?img=${chat.from_id}`;
@@ -32,18 +30,19 @@ function appendMessage(chat) {
         wrapper.appendChild(avatar);
     }
 
-    // bubble
     const msg = document.createElement('div');
     msg.className = `msg ${isMe ? 'me' : 'them'}`;
     msg.innerHTML = `
         ${chat.message}
         <div class="text-muted small mt-1 text-end">
-            ${new Date(chat.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+            ${new Date(chat.created_at).toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit'
+    })}
         </div>
     `;
     wrapper.appendChild(msg);
 
-    // avatar kita
     if (isMe) {
         const avatar = document.createElement('img');
         avatar.src = `https://i.pravatar.cc/35?img=${authId}`;
@@ -58,19 +57,35 @@ function appendMessage(chat) {
 /* ================= TYPING ================= */
 function showTyping() {
     typingIndicator.classList.remove('d-none');
-
     clearTimeout(typingTimeout);
+
     typingTimeout = setTimeout(() => {
         typingIndicator.classList.add('d-none');
     }, 1500);
 }
 
+/* ================= USER CHANNEL (GLOBAL) ================= */
+window.Echo.private(`user.${authId}`)
+    .listen('MessageSentToUser', e => {
+        const chat = e.chat;
+
+        // 🔥 KALAU ROOM SUDAH AKTIF → ABAIKAN
+        if (currentRoom) return;
+
+        // chat pertama → assign room
+        currentRoom = chat.room_code;
+        document.getElementById('room_code').value = currentRoom;
+        subscribeRoomChannel(currentRoom);
+
+        appendMessage(chat);
+    });
+
+
 /* ================= SEND MESSAGE ================= */
 chatForm?.addEventListener('submit', e => {
     e.preventDefault();
-    const message = document.getElementById('message').value.trim();
 
-    console.log(currentChatUser);
+    const message = document.getElementById('message').value.trim();
     if (!message || !currentChatUser) return;
 
     axios.post('/chat/send', {
@@ -82,15 +97,14 @@ chatForm?.addEventListener('submit', e => {
     }).then(res => {
         appendMessage(res.data);
 
-        // 🔥 JANGAN PAKAI if (!currentRoom)
-        currentRoom = res.data.room_code;
-        document.getElementById('room_code').value = currentRoom;
-
-        subscribeRoomChannel(currentRoom);
+        if (!currentRoom) {
+            currentRoom = res.data.room_code;
+            document.getElementById('room_code').value = currentRoom;
+            subscribeRoomChannel(currentRoom);
+        }
 
         document.getElementById('message').value = '';
     });
-
 });
 
 /* ================= USER TYPING ================= */
@@ -102,63 +116,33 @@ chatForm?.querySelector('#message')?.addEventListener('input', () => {
 /* ================= RESET CHAT ================= */
 resetBtn?.addEventListener('click', () => {
     if (!currentRoom) return;
-    if (!confirm('Reset seluruh chat di room ini?')) return;
+    if (!confirm('Akhiri chat di room ini?')) return;
 
     axios.post('/chat/reset', { room_code: currentRoom }).then(() => {
-        // bersihin state
-        chatBox.innerHTML = '';
-        unreadCounts = {};
-
-        // LEAVE SOCKET (penting)
-        window.Echo?.leave(`chat.${currentRoom}`);
-
-        // redirect admin
+        cleanupRoom();
         window.location.href = window.routes.dashboard;
     });
 });
 
-
-/* ================= MULTI CHAT ADMIN ================= */
-document.querySelectorAll('.list-group-item').forEach(el => {
-    el.addEventListener('click', () => {
-        currentChatUser = Number(el.dataset.userId);
-        currentRoom = el.dataset.roomCode || null; // pastikan ada room_code dari backend
-        currentChatType = el.dataset.chatType || 'customer-to-admin';
-
-        document.getElementById('user-name').innerText =
-            el.querySelector('.user-name')?.innerText || el.innerText.trim();
-
-        resetBtn?.classList.remove('d-none');
-        chatBox.innerHTML = '';
-        unreadCounts[currentChatUser] = 0;
-        document.getElementById(`badge-${currentChatUser}`)?.classList.add('d-none');
-
-        if (currentRoom) {
-            loadChat(currentRoom);
-            subscribeRoomChannel(currentRoom);
-        }
-    });
-});
-
-/* ================= REALTIME ================= */
+/* ================= ROOM CHANNEL ================= */
 function subscribeRoomChannel(roomCode) {
     if (!roomCode) return;
 
     const channelName = `chat.${roomCode}`;
 
-    // 🚫 kalau sudah subscribe ke room ini, stop
-    if (activeChannel === channelName) return;
+    if (activeRoomChannel === channelName) return;
 
-    // 🚪 leave channel lama
-    if (activeChannel) {
-        window.Echo.leave(activeChannel);
+    if (activeRoomChannel) {
+        window.Echo.leave(activeRoomChannel);
     }
 
-    activeChannel = channelName;
+    activeRoomChannel = channelName;
 
     window.Echo.private(channelName)
         .listen('MessageSent', e => {
             const chat = e.chat;
+
+            if (chat.room_code !== currentRoom) return;
 
             if (
                 Number(chat.from_id) === authId &&
@@ -169,47 +153,47 @@ function subscribeRoomChannel(roomCode) {
             axios.post('/chat/read', { room_code: roomCode });
         })
 
-        .listen('ChatReset', e => {
-            if (e.room_code === currentRoom) {
-
-                if (activeChannel) {
-                    window.Echo.leave(activeChannel);
-                    activeChannel = null;
-                }
-
-                alert('Chat telah diakhiri.');
-
-                chatBox.innerHTML = '';
-                currentRoom = null;
-                document.getElementById('room_code').value = '';
-
-                // keluar dari channel
-                window.Echo.leave(`private-chat.${currentRoom}`);
-
-                // redirect semua client
-                window.location.href = window.routes.dashboard;
-            }
-        })
-
         .listen('UserTyping', e => {
-            if (
+            if (currentChatType === 'customer-to-admin' &&
                 Number(e.from_id) === currentChatUser &&
                 e.from_type !== authType
             ) {
                 showTyping();
+            } else if (currentChatType === 'customer-to-customer' && Number(e.from_id) === currentChatUser &&
+                e.from_type === authType) {
+                showTyping();
+            }
+        })
+
+        .listen('ChatReset', e => {
+            if (e.room_code === currentRoom) {
+                alert('Chat telah diakhiri.');
+                cleanupRoom();
+                window.location.href = window.routes.dashboard;
             }
         });
+}
+
+/* ================= CLEANUP ================= */
+function cleanupRoom() {
+    chatBox.innerHTML = '';
+    document.getElementById('room_code').value = '';
+    currentRoom = null;
+
+    if (activeRoomChannel) {
+        window.Echo.leave(activeRoomChannel);
+        activeRoomChannel = null;
+    }
 }
 
 /* ================= FETCH CHAT ================= */
 function loadChat(roomCode) {
     if (!roomCode) return;
 
-    axios.get(`/chat/fetch`, { params: { room_code: roomCode } })
+    axios.get('/chat/fetch', { params: { room_code: roomCode } })
         .then(res => {
             chatBox.innerHTML = '';
             res.data.chats.forEach(chat => appendMessage(chat));
-
             axios.post('/chat/read', { room_code: roomCode });
         });
 }

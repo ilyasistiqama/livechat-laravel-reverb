@@ -98,21 +98,21 @@
             <div class="card-body">
                 <h6 class="fw-bold mb-3">💬 Testimoni Customer</h6>
 
-                @foreach ([2 => 'Andi Pratama', 3 => 'Siti Rahma', 4 => 'Budi Santoso'] as $id => $name)
+                @foreach ($testimoni as $id => $t)
                     <div class="d-flex align-items-start justify-content-between mb-3">
                         <div class="d-flex">
                             <img src="https://picsum.photos/seed/user{{ $id }}/50" class="rounded-circle me-3"
                                 width="50" height="50">
 
                             <div>
-                                <strong>{{ $name }}</strong>
+                                <strong>{{ $t->name }}</strong>
                                 <p class="mb-1 text-muted small">
                                     Pelayanan sangat membantu dan mudah digunakan.
                                 </p>
                             </div>
                         </div>
 
-                        <a href="{{ route('chat.index') }}" class="btn btn-sm btn-outline-primary rounded-pill">
+                        <a href="{{ route('chat.index', ['type' => 'customer-to-customer', 'to_member_id' => $t->id]) }}" class="btn btn-sm btn-outline-primary rounded-pill">
                             Chat
                         </a>
                     </div>

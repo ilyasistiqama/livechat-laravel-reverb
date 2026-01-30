@@ -154,11 +154,12 @@
             <div class="card-footer p-3 d-flex justify-content-between align-items-center gap-2 flex-wrap">
                 <form id="chat-form" class="d-flex gap-2 flex-grow-1 mb-2 mb-md-0">
                     @csrf
-                    {{-- <input type="hidden" id="to_id" value="{{ $toUser->id }}"> --}}
                     <input type="text" id="message" class="form-control" placeholder="Ketik pesan..."
                         autocomplete="off">
                     <button type="submit" class="btn btn-primary">Kirim</button>
-                    @if ($auth->type === 'admin')
+                    @if ($type == 'customer-to-admin' && $auth->type === 'admin')
+                        <button id="reset-chat" class="btn btn-danger">Chat Selesai</button>
+                    @elseif ($type == 'customer-to-customer')
                         <button id="reset-chat" class="btn btn-danger">Chat Selesai</button>
                     @endif
                 </form>
