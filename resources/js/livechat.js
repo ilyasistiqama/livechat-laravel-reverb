@@ -12,6 +12,7 @@ const authId = Number(document.querySelector('meta[name="auth-id"]').content);
 let currentRoom = document.getElementById('room_code')?.value || null;
 let currentChatUser = Number(document.getElementById('to_id')?.value || 0);
 let currentChatType = document.getElementById('chat_type')?.value || 'customer-to-admin';
+let pageNow = document.getElementById('page')?.value || 'global';
 
 let activeRoomChannel = null;
 let typingTimeout = null;
@@ -93,7 +94,8 @@ chatForm?.addEventListener('submit', e => {
         to_id: currentChatUser,
         to_type: document.getElementById('to_type').value,
         room_code: currentRoom,
-        type: currentChatType
+        type: currentChatType,
+        page: pageNow,
     }).then(res => {
         appendMessage(res.data);
 

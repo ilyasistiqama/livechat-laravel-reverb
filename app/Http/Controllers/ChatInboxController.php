@@ -66,6 +66,7 @@ class ChatInboxController extends Controller
                 ->join('users', 'users.id', '=', 'chats.from_id')
                 ->where('chats.to_id', $userId)
                 ->where('chats.finished', false)
+                ->where('chats.type', 'customer-to-customer')
                 ->groupBy('chats.room_code', 'chats.from_id', 'users.name')
                 ->orderByDesc('unread')
                 ->get()

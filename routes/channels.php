@@ -26,4 +26,4 @@ Broadcast::channel('user.{id}', function ($user, $id) {
 
 Broadcast::channel('inbox.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
-}, ['guards' => ['admin']]);
+}, ['guards' => ['admin', 'member']]);

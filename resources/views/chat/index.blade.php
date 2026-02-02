@@ -129,6 +129,7 @@
     <input type="hidden" id="to_id" value="{{ $toUserId }}">
     <input type="hidden" id="to_type" value="{{ $toUserType }}">
     <input type="hidden" id="chat_type" value="{{ $type }}">
+    <input type="hidden" id="page" value="{{ $page }}">
 
     <div class="container py-5">
         <div class="card shadow-sm">

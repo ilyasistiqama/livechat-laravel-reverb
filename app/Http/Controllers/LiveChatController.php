@@ -21,6 +21,7 @@ class LiveChatController extends Controller
     {
         $auth = AuthResolver::resolve();
         $type = $request->query('type', 'customer-to-admin');
+        $page = $request->query('page', 'global');
 
         $roomCode   = null;
         $toUserId   = null;
@@ -30,9 +31,6 @@ class LiveChatController extends Controller
 
             if ($auth->type === 'admin') {
 
-                // ===============================
-                // ADMIN LOGIN
-                // ===============================
                 $admin = $auth->user;
 
                 $targetMemberId = $request->query('to_member_id');
@@ -98,9 +96,6 @@ class LiveChatController extends Controller
             }
         } elseif ($type === 'customer-to-customer') {
 
-            // ===============================
-            // CUSTOMER TO CUSTOMER
-            // ===============================
             abort_if($auth->type !== 'member', 403, 'Hanya member yang bisa mengakses chat ini');
 
             $member = $auth->user;
@@ -132,10 +127,8 @@ class LiveChatController extends Controller
 
 
             if ($existingChat) {
-                // ROOM LAMA
                 $roomCode = $existingChat->room_code;
             } else {
-                // CHAT PERTAMA
                 $roomCode = null;
             }
 
@@ -147,7 +140,8 @@ class LiveChatController extends Controller
             'roomCode',
             'toUserId',
             'toUserType',
-            'type'
+            'type',
+            'page',
         ));
     }
 
@@ -193,10 +187,6 @@ class LiveChatController extends Controller
             $toType = 'member';
         }
 
-        // ===============================
-        // CARI CHAT TERAKHIR (2 ARAH)
-        // ===============================
-
         $lastChat = Chat::where(function ($q) use ($auth, $request, $type, $toType) {
             $q->where([
                 ['from_id', $auth->user->id],
@@ -215,9 +205,6 @@ class LiveChatController extends Controller
             ]);
         })->latest()->first();
 
-        // ===============================
-        // TENTUKAN ROOM CODE
-        // ===============================
         if (!$lastChat) {
             $roomCode = Str::uuid();
         } elseif (!$lastChat->finished) {
@@ -226,9 +213,6 @@ class LiveChatController extends Controller
             $roomCode = Str::uuid();
         }
 
-        // ===============================
-        // SIMPAN CHAT
-        // ===============================
         $chat = Chat::create([
             'room_code' => $roomCode,
             'from_id'   => $auth->user->id,
@@ -238,12 +222,11 @@ class LiveChatController extends Controller
             'message'   => $request->message,
             'type'      => $request->type,
             'finished'  => false,
+            'page'      => $request->page
         ]);
 
-        // 🔥 KIRIM KE ROOM (KALAU SUDAH ADA)
         broadcast(new MessageSent($chat->toArray()))->toOthers();
 
-        // 🔥 KIRIM KE USER (CHAT PERTAMA)
         event(new MessageSentToUser(
             userId: $chat->to_id,
             chat: $chat->toArray()

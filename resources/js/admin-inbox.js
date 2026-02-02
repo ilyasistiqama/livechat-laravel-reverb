@@ -4,6 +4,7 @@ const inboxList = document.getElementById('inbox-list');
 const inboxEmpty = document.getElementById('inbox-empty');
 const sound = document.getElementById('inbox-sound');
 const authId = document.querySelector('meta[name="auth-id"]')?.content;
+const authType = document.querySelector('meta[name="auth-type"]')?.content;
 
 /* =========================
    RENDER / UPDATE ITEM
@@ -20,9 +21,13 @@ function renderInboxItem({
     let item = inboxList.querySelector(`[data-user-id="${from_id}"]`);
 
     if (!item) {
+
+        let typeChat = authType === 'admin' ? 'customer-to-admin' : 'customer-to-customer';
+        let page = authType === 'admin' ? 'global' : 'testimoni';
+        
         item = document.createElement('a');
         item.dataset.userId = from_id;
-        item.href = `/chat?to_member_id=${from_id}&type=customer-to-admin`;
+        item.href = `/chat?to_member_id=${from_id}&type=${typeChat}&page=${page}`;
         item.className =
             'list-group-item list-group-item-action d-flex justify-content-between align-items-center inbox-item';
 
@@ -84,7 +89,7 @@ if (authId && inboxList) {
                 inboxEmpty?.classList.remove('d-none');
                 return;
             }
-
+            
             inboxEmpty?.classList.add('d-none');
             data.forEach(renderInboxItem);
         });

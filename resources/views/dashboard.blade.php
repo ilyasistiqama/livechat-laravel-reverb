@@ -35,55 +35,55 @@
     @endphp
 
     {{-- ================= ADMIN ================= --}}
-    @if ($auth && $auth->guard === 'admin')
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <meta name="auth-id" content="{{ auth()->id() }}">
+    <div class="card shadow-sm {{ $auth->type == 'admin' ? '' : 'mb-3' }}">
+        <div class="card-body">
+            <meta name="auth-id" content="{{ $auth->user->id }}">
+            <meta name="auth-type" content="{{ $auth->type }}">
 
-                <style>
-                    .inbox-item {
-                        transition: background .15s ease;
-                    }
+            <style>
+                .inbox-item {
+                    transition: background .15s ease;
+                }
 
-                    .inbox-item:hover {
-                        background: #f8f9fa;
-                    }
-                </style>
+                .inbox-item:hover {
+                    background: #f8f9fa;
+                }
+            </style>
 
 
-                <div class="card shadow-sm">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold">
-                            📥 Inbox Customer
-                        </h5>
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold">
+                        📥 Inbox {{ $auth->type == 'admin' ? 'Customer' : 'Testimoni' }}
+                    </h5>
 
-                        <span class="badge bg-primary" id="inbox-count" style="display:none">
-                            0
-                        </span>
-                    </div>
-
-                    <div class="card-body p-0">
-
-                        {{-- LIST INBOX --}}
-                        <ul id="inbox-list" class="list-group list-group-flush">
-                            {{-- realtime injected --}}
-                        </ul>
-
-                        {{-- EMPTY STATE --}}
-                        <div id="inbox-empty" class="text-center text-muted py-4">
-                            Belum ada pesan masuk
-                        </div>
-
-                    </div>
+                    <span class="badge bg-primary" id="inbox-count" style="display:none">
+                        0
+                    </span>
                 </div>
 
-                <audio id="inbox-sound" src="{{ asset('wewokdetok.mp3') }}"></audio>
+                <div class="card-body p-0">
 
+                    {{-- LIST INBOX --}}
+                    <ul id="inbox-list" class="list-group list-group-flush">
+                        {{-- realtime injected --}}
+                    </ul>
+
+                    {{-- EMPTY STATE --}}
+                    <div id="inbox-empty" class="text-center text-muted py-4">
+                        Belum ada pesan masuk
+                    </div>
+
+                </div>
             </div>
-        </div>
 
-        {{-- ================= MEMBER ================= --}}
-    @elseif ($auth && $auth->guard === 'member')
+            <audio id="inbox-sound" src="{{ asset('wewokdetok.mp3') }}"></audio>
+
+        </div>
+    </div>
+
+    {{-- ================= MEMBER ================= --}}
+    @if ($auth && $auth->guard === 'member')
         <div class="card shadow-sm mb-3">
             <div class="card-body">
                 <h5 class="mb-1">Halo {{ $auth->user->name }} 👋</h5>
@@ -112,7 +112,8 @@
                             </div>
                         </div>
 
-                        <a href="{{ route('chat.index', ['type' => 'customer-to-customer', 'to_member_id' => $t->id]) }}" class="btn btn-sm btn-outline-primary rounded-pill">
+                        <a href="{{ route('chat.index', ['type' => 'customer-to-customer', 'to_member_id' => $t->id, 'page' => 'testimoni']) }}"
+                            class="btn btn-sm btn-outline-primary rounded-pill">
                             Chat
                         </a>
                     </div>
