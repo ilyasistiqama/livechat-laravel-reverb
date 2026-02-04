@@ -112,7 +112,15 @@
                             </div>
                         </div>
 
-                        <a href="{{ route('chat.index', ['type' => 'customer-to-customer', 'to_member_id' => $t->id, 'page' => 'testimoni']) }}"
+                        @php
+                            $payloadTestimoni = Crypt::encrypt([
+                                'type' => 'customer-to-customer',
+                                'to_member_id' => $t->id,
+                                'page' => 'testimoni',
+                            ]);
+                        @endphp
+
+                        <a href="{{ route('chat.index', ['payload' => $payloadTestimoni]) }}"
                             class="btn btn-sm btn-outline-primary rounded-pill">
                             Chat
                         </a>
@@ -122,9 +130,29 @@
         </div>
 
         {{-- FLOATING CHAT --}}
-        <a href="{{ route('chat.index', ['type' => 'customer-to-admin']) }}" class="chat-float-btn"
+        <a href="{{ route('chat.index', ['payload' => $payloadGlobal]) }}" class="chat-float-btn"
             title="Chat Customer Service">
             <i class="bi bi-chat-dots-fill"></i>
         </a>
     @endif
+
+    @push('scripts')
+        <script>
+            document.addEventListener('click', function(e) {
+                const target = e.target.closest('a');
+                if (!target) return;
+                
+                // hanya blok link chat
+                if (target.href && target.href.includes('/chat')) {
+                    if (window.__DEVTOOLS_OPEN__) {
+                        e.preventDefault();
+                        e.stopPropagation();
+
+                        alert('❌ Tutup inspect terlebih dahulu');
+                        return false;
+                    }
+                }
+            }, true);
+        </script>
+    @endpush
 @endsection

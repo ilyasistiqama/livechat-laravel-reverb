@@ -12,13 +12,40 @@
 
     <title>Live Chat</title>
 
+    @php
+        $chatConfig = [
+            'room_code' => $roomCode ?? null,
+            'to_id' => $toUserId ?? null,
+            'to_type' => $toUserType ?? null,
+            'chat_type' => $type ?? 'customer-to-admin',
+            'page' => $page ?? 'global',
+        ];
+    @endphp
+
+    <script>
+        window.__CHAT__ = @json($chatConfig);
+    </script>
+
     @vite(['resources/js/livechat.js'])
+
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 
+    <style>
+        #chat-box {
+            user-select: none;
+            -webkit-user-select: none;
+            -ms-user-select: none;
+        }
+
+        .avatar {
+            pointer-events: none;
+            user-select: none;
+        }
+    </style>
     <style>
         body {
             background-color: #f0f2f5;
@@ -125,11 +152,6 @@
 </head>
 
 <body>
-    <input type="hidden" id="room_code" value="{{ $roomCode }}">
-    <input type="hidden" id="to_id" value="{{ $toUserId }}">
-    <input type="hidden" id="to_type" value="{{ $toUserType }}">
-    <input type="hidden" id="chat_type" value="{{ $type }}">
-    <input type="hidden" id="page" value="{{ $page }}">
 
     <div class="container py-5">
         <div class="card shadow-sm">
@@ -178,6 +200,25 @@
             dashboard: "{{ route('dashboard') }}"
         };
     </script>
+    <script>
+        // 1. Disable klik kanan
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+        });
+
+        // 2. Block shortcut inspect
+        document.addEventListener('keydown', function(e) {
+            if (
+                e.key === 'F12' ||
+                (e.ctrlKey && e.key.toLowerCase() === 'u') ||
+                (e.ctrlKey && e.shiftKey && ['i', 'j', 'c'].includes(e.key.toLowerCase()))
+            ) {
+                e.preventDefault();
+                window.location.replace('/dashboard');
+            }
+        });
+    </script>
+
 </body>
 
 </html>

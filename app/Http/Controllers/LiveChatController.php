@@ -12,20 +12,32 @@ use App\Models\Member;
 use App\Models\User;
 use App\Services\AuthResolver;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Contracts\Encryption\DecryptException;
 
 class LiveChatController extends Controller
 {
     public function index(Request $request)
     {
-        $auth = AuthResolver::resolve();
-        $type = $request->query('type', 'customer-to-admin');
-        $page = $request->query('page', 'global');
+
+        try {
+            $payload = Crypt::decrypt($request->input('payload'));
+        } catch (DecryptException $e) {
+            abort(404);
+        }
 
         $roomCode   = null;
         $toUserId   = null;
         $toUserType = null;
+
+        $type = $payload['type'] ?? null;
+        $page = $payload['page'] ?? 'global';
+        $memberId = $payload['to_member_id'] ?? null;
+
+
+        $auth = AuthResolver::resolve();
 
         if ($type === 'customer-to-admin') {
 
@@ -33,30 +45,29 @@ class LiveChatController extends Controller
 
                 $admin = $auth->user;
 
-                $targetMemberId = $request->query('to_member_id');
-                abort_if(!$targetMemberId, 404, 'Target member belum dipilih');
+                abort_if(!$memberId, 404, 'Target member belum dipilih');
 
                 // ADMIN boleh lihat room lama
-                $existingChat = Chat::where(function ($q) use ($admin, $targetMemberId, $type) {
+                $existingChat = Chat::where(function ($q) use ($admin, $memberId, $type) {
                     $q->where([
-                        ['from_id', $targetMemberId],
+                        ['from_id', $memberId],
                         ['from_type', 'member'],
                         ['to_id', $admin->id],
                         ['to_type', 'admin'],
                         ['type', $type],
                     ]);
-                })->orWhere(function ($q) use ($admin, $targetMemberId, $type) {
+                })->orWhere(function ($q) use ($admin, $memberId, $type) {
                     $q->where([
                         ['from_id', $admin->id],
                         ['from_type', 'admin'],
-                        ['to_id', $targetMemberId],
+                        ['to_id', $memberId],
                         ['to_type', 'member'],
                         ['type', $type],
                     ]);
                 })->latest()->first();
 
                 $roomCode   = $existingChat?->room_code;
-                $toUserId   = $targetMemberId;
+                $toUserId   = $memberId;
                 $toUserType = 'member';
             } else {
 
@@ -100,24 +111,23 @@ class LiveChatController extends Controller
 
             $member = $auth->user;
 
-            $targetMemberId = $request->query('to_member_id');
-            abort_if(!$targetMemberId, 404, 'Target member belum dipilih');
+            abort_if(!$memberId, 404, 'Target member belum dipilih');
 
             // Cegah chat ke diri sendiri
-            abort_if($member->id == $targetMemberId, 400, 'Tidak bisa chat dengan diri sendiri');
+            abort_if($member->id == $memberId, 400, 'Tidak bisa chat dengan diri sendiri');
 
             // Cari chat lama (dua arah)
-            $existingChat = Chat::where(function ($q) use ($member, $targetMemberId, $type) {
+            $existingChat = Chat::where(function ($q) use ($member, $memberId, $type) {
                 $q->where([
                     ['from_id', $member->id],
                     ['from_type', 'member'],
-                    ['to_id', $targetMemberId],
+                    ['to_id', $memberId],
                     ['to_type', 'member'],
                     ['type', $type],
                 ]);
-            })->orWhere(function ($q) use ($member, $targetMemberId, $type) {
+            })->orWhere(function ($q) use ($member, $memberId, $type) {
                 $q->where([
-                    ['from_id', $targetMemberId],
+                    ['from_id', $memberId],
                     ['from_type', 'member'],
                     ['to_id', $member->id],
                     ['to_type', 'member'],
@@ -132,8 +142,10 @@ class LiveChatController extends Controller
                 $roomCode = null;
             }
 
-            $toUserId   = $targetMemberId;
+            $toUserId   = $memberId;
             $toUserType = 'member';
+        } else {
+            abort(404);
         }
 
         return view('chat.index', compact(

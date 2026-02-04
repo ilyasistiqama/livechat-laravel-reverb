@@ -15,19 +15,16 @@ function renderInboxItem({
     from_name,
     unread = 0,
     last_message = '',
+    chat_href = '',
 }) {
     if (!from_id || !inboxList) return;
 
     let item = inboxList.querySelector(`[data-user-id="${from_id}"]`);
 
     if (!item) {
-
-        let typeChat = authType === 'admin' ? 'customer-to-admin' : 'customer-to-customer';
-        let page = authType === 'admin' ? 'global' : 'testimoni';
-        
         item = document.createElement('a');
         item.dataset.userId = from_id;
-        item.href = `/chat?to_member_id=${from_id}&type=${typeChat}&page=${page}`;
+        item.href = chat_href; // 🔥 dari backend
         item.className =
             'list-group-item list-group-item-action d-flex justify-content-between align-items-center inbox-item';
 
@@ -89,7 +86,7 @@ if (authId && inboxList) {
                 inboxEmpty?.classList.remove('d-none');
                 return;
             }
-            
+
             inboxEmpty?.classList.add('d-none');
             data.forEach(renderInboxItem);
         });

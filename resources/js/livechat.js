@@ -1,6 +1,7 @@
 import './bootstrap';
 
 /* ================= ELEMENT ================= */
+
 const chatBox = document.getElementById('chat-box');
 const chatForm = document.getElementById('chat-form');
 const typingIndicator = document.getElementById('typing-indicator');
@@ -9,10 +10,13 @@ const resetBtn = document.getElementById('reset-chat');
 const authType = document.querySelector('meta[name="auth-type"]').content;
 const authId = Number(document.querySelector('meta[name="auth-id"]').content);
 
-let currentRoom = document.getElementById('room_code')?.value || null;
-let currentChatUser = Number(document.getElementById('to_id')?.value || 0);
-let currentChatType = document.getElementById('chat_type')?.value || 'customer-to-admin';
-let pageNow = document.getElementById('page')?.value || 'global';
+const CHAT = window.__CHAT__ || {};
+
+let currentRoom = CHAT.room_code ?? null;
+let currentChatUser = Number(CHAT.to_id ?? 0);
+let currentChatType = CHAT.chat_type ?? 'customer-to-admin';
+let pageNow = CHAT.page ?? 'global';
+let currentChatToType = CHAT.to_type ?? null;
 
 let activeRoomChannel = null;
 let typingTimeout = null;
@@ -92,7 +96,7 @@ chatForm?.addEventListener('submit', e => {
     axios.post('/chat/send', {
         message,
         to_id: currentChatUser,
-        to_type: document.getElementById('to_type').value,
+        to_type: currentChatToType,
         room_code: currentRoom,
         type: currentChatType,
         page: pageNow,
