@@ -28,6 +28,14 @@
         <div class="container">
             <a class="navbar-brand fw-bold" href="{{ route('dashboard') }}">MyApp</a>
 
+            @if(auth('admin')->check())
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-3">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('admin.report') }}">Laporan</a>
+                    </li>
+                </ul>
+            @endif
+
             @if ($user)
                 <div class="ms-auto d-flex align-items-center gap-3">
                     <span class="text-muted small">

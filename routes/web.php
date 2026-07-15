@@ -103,4 +103,8 @@ Route::middleware('auth.any')->group(function () {
     Route::get('/admin/inbox', [ChatInboxController::class, 'admin'])
         ->middleware('can:isAdmin')
         ->name('admin.inbox');
+        
+    Route::get('/admin/report', [App\Http\Controllers\ReportController::class, 'index'])
+        // ->middleware('can:isAdmin')
+        ->name('admin.report');
 });
