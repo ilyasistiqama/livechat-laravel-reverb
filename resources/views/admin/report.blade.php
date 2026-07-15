@@ -36,7 +36,7 @@
         <div class="col-md-6 mb-3">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <h6 class="text-muted fw-bold mb-3">Rata-rata Waktu Respon Semua Room ({{ \Carbon\Carbon::parse($date)->format('d M Y') }})</h6>
+                    <h6 class="text-muted fw-bold mb-3">Rata-rata Respon Admin Semua Room ({{ \Carbon\Carbon::parse($date)->format('d M Y') }})</h6>
                     <h2 class="display-6 text-success mb-0">{{ $globalAvgText }}</h2>
                 </div>
             </div>

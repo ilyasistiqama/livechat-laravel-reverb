@@ -33,8 +33,8 @@ class ReportController extends Controller
             ->get();
 
         $roomStats = [];
-        $globalResponseTotal = 0;
-        $globalResponseCount = 0;
+        $globalAdminResponseTotal = 0;
+        $globalAdminResponseCount = 0;
 
         foreach ($chats->groupBy('room_code') as $roomCode => $roomChats) {
             $adminResponseTotal = 0;
@@ -69,8 +69,8 @@ class ReportController extends Controller
             $overallResponseCount = $adminResponseCount + $memberResponseCount;
             $avgOverall = $overallResponseCount > 0 ? $overallResponseTotal / $overallResponseCount : 0;
             
-            $globalResponseTotal += $overallResponseTotal;
-            $globalResponseCount += $overallResponseCount;
+            $globalAdminResponseTotal += $adminResponseTotal;
+            $globalAdminResponseCount += $adminResponseCount;
 
               
             $roomStats[] = (object) [
@@ -85,7 +85,7 @@ class ReportController extends Controller
             ];
         }
 
-        $globalAvg = $globalResponseCount > 0 ? $globalResponseTotal / $globalResponseCount : 0;
+        $globalAvg = $globalAdminResponseCount > 0 ? $globalAdminResponseTotal / $globalAdminResponseCount : 0;
         $globalAvgText = $this->formatTime($globalAvg);
 
         return view('admin.report', compact('date', 'finishedChatsCount', 'roomStats', 'globalAvgText'));
